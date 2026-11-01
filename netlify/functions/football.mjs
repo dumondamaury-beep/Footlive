@@ -1,6 +1,7 @@
 const LEAGUES = { l1: 61, ucl: 2, uel: 3 };
 const NINJAS_LEAGUES = { l1: "ligue1", ucl: "ucl", uel: "uel" };
 const SPORTAPI_LEAGUES = { l1: 9, ucl: 18, uel: 22 };
+
 const SEASON = 2026;
 const BASE = "https://v3.football.api-sports.io";
 const SPORTAPI_BASE = "https://sportapi.ai/api";
@@ -17,8 +18,38 @@ export default async (request) => {
   const type = url.searchParams.get("type");
   const comp = url.searchParams.get("comp");
 
+  if (!Object.hasOwn(LEAGUES, comp) && type !== "live") {
+    return Response.json(
+      { error: "invalid_competition" },
+      { status: 400 }
+    );
+  }
+
   try {
-    // LOGOS : proxy sécurisé SportAPI
+    // LISTE DES ÉQUIPES SPORTAPI (vérification temporaire)
+    if (type === "teams") {
+      const key = process.env.SPORTAPI_KEY;
+
+      if (!key) {
+        return Response.json(
+          { error: "missing_sportapi_key" },
+          { status: 503 }
+        );
+      }
+
+      const response = await fetch(
+        `${SPORTAPI_BASE}/leagues/${SPORTAPI_LEAGUES[comp]}`,
+        { headers: { "X-Api-Key": key } }
+      );
+
+      const data = await response.json();
+
+      return Response.json(data, {
+        status: response.status
+      });
+    }
+
+    // LOGOS : PROXY SÉCURISÉ SPORTAPI
     if (type === "logo") {
       const teamId = url.searchParams.get("team");
       const key = process.env.SPORTAPI_KEY;
@@ -31,25 +62,24 @@ export default async (request) => {
         return new Response("Identifiant équipe invalide", { status: 400 });
       }
 
-      const logoResponse = await fetch(
+      const response = await fetch(
         `${SPORTAPI_BASE}/teams/${teamId}/logo`,
         { headers: { "X-Api-Key": key } }
       );
 
-      if (!logoResponse.ok) {
-        return new Response("Logo indisponible", { status: logoResponse.status });
+      if (!response.ok) {
+        return new Response("Logo indisponible", {
+          status: response.status
+        });
       }
 
-      return new Response(await logoResponse.arrayBuffer(), {
+      return new Response(await response.arrayBuffer(), {
         headers: {
-          "Content-Type": logoResponse.headers.get("content-type") || "image/png",
+          "Content-Type":
+            response.headers.get("content-type") || "image/png",
           "Cache-Control": "public, max-age=604800, s-maxage=604800"
         }
       });
-    }
-
-    if (!Object.hasOwn(LEAGUES, comp) && type !== "live") {
-      return Response.json({ error: "invalid_competition" }, { status: 400 });
     }
 
     // CLASSEMENTS : API NINJAS + LOGOS SPORTAPI
@@ -166,7 +196,9 @@ export default async (request) => {
         return Response.json({
           error: "sportapi_scorers_error",
           details: scorersData
-        }, { status: scorersResponse.status || 502 });
+        }, {
+          status: scorersResponse.status || 502
+        });
       }
 
       let assistsData = { data: [] };
@@ -215,7 +247,7 @@ export default async (request) => {
       });
     }
 
-    // AUTRES DONNÉES : API-FOOTBALL
+    // MATCHS : API-FOOTBALL
     const key = process.env.API_FOOTBALL_KEY;
 
     if (!key) {
