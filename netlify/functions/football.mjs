@@ -1,3 +1,4 @@
+
 const LEAGUES = { l1: 61, ucl: 2, uel: 3 };
 const NINJAS_LEAGUES = { l1: "ligue1", ucl: "ucl", uel: "uel" };
 const SPORTAPI_LEAGUES = { l1: 9, ucl: 18, uel: 22 };
@@ -13,6 +14,19 @@ const normalizeTeamName = (name) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
+const TEAM_ALIASES = {
+  parissaintgermain: "parissg",
+  psg: "parissg",
+  staderennais: "rennes",
+  asmonaco: "monaco",
+  lyon: "olympiquelyonnais"
+};
+
+const canonicalTeamName = (name) => {
+  const normalized = normalizeTeamName(name);
+  return TEAM_ALIASES[normalized] || normalized;
+};
+
 export default async (request) => {
   const url = new URL(request.url);
   const type = url.searchParams.get("type");
@@ -26,7 +40,7 @@ export default async (request) => {
   }
 
   try {
-    // LISTE DES ÉQUIPES SPORTAPI (vérification temporaire)
+    // LISTE DES ÉQUIPES SPORTAPI
     if (type === "teams") {
       const key = process.env.SPORTAPI_KEY;
 
@@ -44,9 +58,7 @@ export default async (request) => {
 
       const data = await response.json();
 
-      return Response.json(data, {
-        status: response.status
-      });
+      return Response.json(data, { status: response.status });
     }
 
     // LOGOS : PROXY SÉCURISÉ SPORTAPI
@@ -122,8 +134,10 @@ export default async (request) => {
           if (teamsResponse.ok && Array.isArray(teamsData.teams)) {
             for (const team of teamsData.teams) {
               if (team.name && team.id) {
-                logoByName[normalizeTeamName(team.name)] =
+                const logoUrl =
                   `/.netlify/functions/football?type=logo&team=${team.id}`;
+
+                logoByName[canonicalTeamName(team.name)] = logoUrl;
               }
             }
           }
@@ -141,7 +155,7 @@ export default async (request) => {
         team: {
           name: x.team?.name,
           code: x.team?.abbreviation,
-          logo: logoByName[normalizeTeamName(x.team?.name)] || null
+          logo: logoByName[canonicalTeamName(x.team?.name)] || null
         },
         all: {
           played: x.games_played,
