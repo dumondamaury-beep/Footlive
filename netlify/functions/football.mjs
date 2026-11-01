@@ -19,7 +19,8 @@ const TEAM_ALIASES = {
   psg: "parissg",
   staderennais: "rennes",
   asmonaco: "monaco",
-  lyon: "olympiquelyonnais"
+  lyon: "olympiquelyonnais",
+  lehavreac: "lehavre"
 };
 
 const canonicalTeamName = (name) => {
@@ -32,7 +33,12 @@ export default async (request) => {
   const type = url.searchParams.get("type");
   const comp = url.searchParams.get("comp");
 
-  if (!Object.hasOwn(LEAGUES, comp) && type !== "live") {
+  // Les logos n'ont pas besoin d'un paramètre comp.
+  if (
+    !Object.hasOwn(LEAGUES, comp) &&
+    type !== "live" &&
+    type !== "logo"
+  ) {
     return Response.json(
       { error: "invalid_competition" },
       { status: 400 }
@@ -301,7 +307,10 @@ export default async (request) => {
       limit: upstream.headers.get("x-ratelimit-requests-limit")
     };
 
-    if (!upstream.ok || (body.errors && Object.keys(body.errors).length)) {
+    if (
+      !upstream.ok ||
+      (body.errors && Object.keys(body.errors).length)
+    ) {
       return Response.json({
         error: "api_provider_error",
         message: body.message || JSON.stringify(body.errors),
